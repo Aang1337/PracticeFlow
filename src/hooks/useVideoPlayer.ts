@@ -160,6 +160,17 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
 
   // Reactivity Engine: Watch native currentTime progression exclusively and boundary trap it safely
   useEffect(() => {
+    // 1. PROGRESS LOCK: Prevent native/external seeks ahead of watched boundaries
+    if (currentTime > maxWatchedTime + 2 && !isPaused) {
+      if (isYouTubeSource) {
+        ytPlayer.seekTo(maxWatchedTime);
+      } else if (videoRef.current) {
+        videoRef.current.currentTime = maxWatchedTime;
+      }
+      return; // Exit early to avoid dual-triggering pause on the same frame
+    }
+
+    // 2. AUTO-PAUSE: Natively intercept progression at multiples of 60s
     const currentChunk = Math.floor(currentTime / FIXED_INTERVAL) * FIXED_INTERVAL;
     
     if (currentChunk >= FIXED_INTERVAL && currentChunk > lastPauseMarker && !isPaused) {
@@ -177,7 +188,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
       const nextTarget = Math.max(baseTarget, lastPauseMarker + FIXED_INTERVAL);
       setTimeUntilPause(nextTarget - currentTime);
     }
-  }, [currentTime, isPaused, lastPauseMarker, isYouTubeSource, ytPause, playChime]);
+  }, [currentTime, isPaused, lastPauseMarker, isYouTubeSource, ytPause, ytPlayer, playChime, maxWatchedTime]);
 
   // Strict Practice Overlay Countdown - Optimized to prevent 1-second remount iterations
   useEffect(() => {

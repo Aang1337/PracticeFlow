@@ -136,7 +136,7 @@ export function useYouTubePlayer(
           optionsRef.current.onTimeUpdate?.(time, dur);
           optionsRef.current.onBufferUpdate?.(buffered);
         } catch {
-          // Player might be destroyed
+          // ignore
         }
       }
       rafRef.current = requestAnimationFrame(poll);
@@ -182,12 +182,10 @@ export function useYouTubePlayer(
           origin: window.location.origin,
         },
         events: {
-          onReady: (event) => {
+          onReady: () => {
             setIsReady(true);
             optionsRef.current.onReady?.();
             startPolling();
-            // Aggressively attempt to lock resolution to highest baseline securely
-            event.target.setPlaybackQuality('hd1080');
           },
           onStateChange: (event) => {
             optionsRef.current.onStateChange?.(event.data);
@@ -216,7 +214,11 @@ export function useYouTubePlayer(
   }, [startPolling, stopPolling]);
 
   const loadVideo = useCallback((videoId: string) => {
-    playerRef.current?.cueVideoById(videoId);
+    if (playerRef.current) {
+      playerRef.current.cueVideoById(videoId);
+      // Enforce quality preference whenever a new video is queued
+      playerRef.current.setPlaybackQuality('hd1080');
+    }
   }, []);
 
   const play = useCallback(() => {
