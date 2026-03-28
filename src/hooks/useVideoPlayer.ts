@@ -439,6 +439,13 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
       setIsPlaying(true);
     }
   }, [strictCountdown, isYouTubeSource, ytPlay, ytSeekTo, currentTime]);
+
+  // Auto-resume the video automatically when countdown reaches 0
+  useEffect(() => {
+    if (isPaused && strictCountdown === 0) {
+      resumeFromPause();
+    }
+  }, [isPaused, strictCountdown, resumeFromPause]);
   
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
