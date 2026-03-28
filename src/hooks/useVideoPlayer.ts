@@ -33,6 +33,7 @@ export interface UseVideoPlayerReturn {
   isPaused: boolean;
   timeUntilPause: number;
   strictCountdown: number;
+  maxWatchedTime: number;
 
   interval: number;
   setInterval: (val: number) => void;
@@ -75,6 +76,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [buffered, setBuffered] = useState(0);
+  const [maxWatchedTime, setMaxWatchedTime] = useState(0);
 
   const [isPaused, setIsPaused] = useState(false);
   const [timeUntilPause, setTimeUntilPause] = useState(DEFAULT_INTERVAL);
@@ -101,6 +103,16 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
       if (isYouTubeSource) {
         setCurrentTime(time);
         setDuration(dur);
+
+        // Progressively lock forward limits natively
+        setMaxWatchedTime((prevMax) => {
+          const newMax = Math.max(prevMax, time);
+          if (currentVideo && newMax > prevMax) {
+            try { window.localStorage.setItem(`pf-max-time-${currentVideo.id}`, newMax.toString()); } catch {}
+          }
+          return newMax;
+        });
+
         if (currentVideo) {
           try {
             window.localStorage.setItem(`pf-time-${currentVideo.id}`, time.toString());
@@ -203,6 +215,16 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
       if (!isYouTubeSource) {
         const t = video.currentTime;
         setCurrentTime(t);
+
+        // Progressively lock forward limits natively
+        setMaxWatchedTime((prevMax) => {
+            const newMax = Math.max(prevMax, t);
+            if (currentVideo && newMax > prevMax) {
+              try { window.localStorage.setItem(`pf-max-time-${currentVideo.id}`, newMax.toString()); } catch {}
+            }
+            return newMax;
+        });
+
         if (currentVideo) {
           try {
             window.localStorage.setItem(`pf-time-${currentVideo.id}`, t.toString());
@@ -312,19 +334,29 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
       const saved = window.localStorage.getItem(`pf-time-${vid.id}`);
       if (saved) savedTime = parseFloat(saved) || 0;
     } catch {}
+    
+    let savedMaxTime = 0;
+    try {
+      const sMax = window.localStorage.getItem(`pf-max-time-${vid.id}`);
+      if (sMax) savedMaxTime = parseFloat(sMax) || 0;
+    } catch {}
 
+    setMaxWatchedTime(savedMaxTime);
     setCurrentTime(savedTime);
+
+    // Hard-fix: Ensure saved time cannot accidentally circumvent max logic natively
+    const initialSafeTime = Math.min(savedTime, savedMaxTime > 0 ? savedMaxTime : savedTime);
 
     if (vid.source === 'youtube' && vid.youtubeId) {
       if (ytIsReady) {
         ytLoadVideo(vid.youtubeId);
-        ytSeekTo(savedTime);
+        ytSeekTo(initialSafeTime);
       }
     } else {
       const video = videoRef.current;
       if (video) {
         video.src = vid.url;
-        video.currentTime = savedTime;
+        video.currentTime = initialSafeTime;
         video.load();
       }
     }
@@ -343,16 +375,19 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   }, [isYouTubeSource, isPlaying, ytPause, ytPlay]);
 
   const seek = useCallback((time: number) => {
+    // CLAMP FORWARD PROGRESS STRICTLY
+    const safeTime = Math.min(time, maxWatchedTime);
+
     if (isYouTubeSource) {
-      ytSeekTo(time);
-      setCurrentTime(time);
+      ytSeekTo(safeTime);
+      setCurrentTime(safeTime);
     } else {
       const video = videoRef.current;
       if (!video) return;
-      video.currentTime = time;
-      setCurrentTime(time);
+      video.currentTime = safeTime;
+      setCurrentTime(safeTime);
     }
-  }, [isYouTubeSource, ytSeekTo]);
+  }, [isYouTubeSource, ytSeekTo, maxWatchedTime]);
 
   const setVolume = useCallback((vol: number) => {
     if (isYouTubeSource) {
@@ -391,8 +426,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   }, []);
 
   const resumeFromPause = useCallback(() => {
-    if (strictCountdown > 0) return; // Unconditionally block native skipping sequences
-
     setIsPaused(false);
     setTimeUntilPause(interval);
     setStrictCountdown(0);
@@ -407,7 +440,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
       video.play();
       setIsPlaying(true);
     }
-  }, [strictCountdown, interval, isYouTubeSource, ytPlay]);
+  }, [interval, isYouTubeSource, ytPlay]);
   
   // Moved keyboard controls below function callbacks
   useEffect(() => {
@@ -416,10 +449,10 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
 
       if (e.key === ' ') {
         e.preventDefault();
-        if (isPaused) resumeFromPause();
+        if (isPaused) return; // Disallow native bypass using Spacebar immediately if in PauseOverlay natively
         else togglePlay();
       } else if (e.key === 'r' || e.key === 'R') {
-        if (isPaused) resumeFromPause();
+        if (isPaused) return; // Wait out strict lock natively 
       } else if (e.key === 'f' || e.key === 'F') {
         toggleFullscreen();
       } else if (e.key === 'm' || e.key === 'M') {
@@ -507,6 +540,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     isPaused,
     timeUntilPause,
     strictCountdown,
+    maxWatchedTime,
     interval,
     setInterval: setIntervalState,
     playlist,

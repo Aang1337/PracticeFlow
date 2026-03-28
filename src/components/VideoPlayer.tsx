@@ -65,6 +65,7 @@ export default function VideoPlayer({ player }: VideoPlayerProps) {
           volume={player.volume}
           isMuted={player.isMuted}
           buffered={player.buffered}
+          maxWatchedTime={player.maxWatchedTime}
           onTogglePlay={player.togglePlay}
           onSeek={player.seek}
           onVolumeChange={player.setVolume}
