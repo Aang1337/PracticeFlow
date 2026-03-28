@@ -460,8 +460,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
 
     // EXACT TIME RESUME (No 8-sec reverse modification)
     if (isYouTubeSource) {
-      // For YouTube, it preserves state internally, but forcing seek ensures no drift
-      ytSeekTo(currentTime);
+      // For YouTube, it preserves state natively at pause exactly.
       ytPlay();
       setIsPlaying(true);
     } else {
