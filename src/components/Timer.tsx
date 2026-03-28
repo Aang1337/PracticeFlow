@@ -4,12 +4,12 @@ import { formatCompact } from '@/utils/formatTime';
 
 interface TimerProps {
   timeUntilPause: number;
-  interval: number;
   isPlaying: boolean;
 }
 
-export default function Timer({ timeUntilPause, interval, isPlaying }: TimerProps) {
-  const progress = 1 - timeUntilPause / interval;
+export default function Timer({ timeUntilPause, isPlaying }: TimerProps) {
+  const FIXED_INTERVAL = 60;
+  const progress = 1 - timeUntilPause / FIXED_INTERVAL;
   const circumference = 2 * Math.PI * 18;
   const isUrgent = timeUntilPause <= 5;
 

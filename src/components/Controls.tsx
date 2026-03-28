@@ -10,7 +10,6 @@ interface ControlsProps {
   volume: number;
   isMuted: boolean;
   buffered: number;
-  maxWatchedTime: number;
   onTogglePlay: () => void;
   onSeek: (time: number) => void;
   onVolumeChange: (vol: number) => void;
@@ -26,7 +25,6 @@ export default function Controls({
   volume,
   isMuted,
   buffered,
-  maxWatchedTime,
   onTogglePlay,
   onSeek,
   onVolumeChange,
@@ -41,7 +39,6 @@ export default function Controls({
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const bufferedProgress = duration > 0 ? (buffered / duration) * 100 : 0;
-  const maxWatchedProgress = duration > 0 ? (maxWatchedTime / duration) * 100 : 0;
 
   const getTimeFromPosition = useCallback(
     (clientX: number) => {
@@ -99,20 +96,15 @@ export default function Controls({
     };
   }, [isDragging, getTimeFromPosition, onSeek]);
 
-  // Is the hovered position beyond the max watched point?
-  const isHoverLocked = hoverTime !== null && hoverTime > maxWatchedTime + 0.5;
-
   return (
     <div
       className={`absolute bottom-0 left-0 right-0 z-30 transition-all duration-300 ${
         visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
       }`}
     >
-      {/* Gradient fade */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
 
       <div className="relative px-4 pb-4 pt-12">
-        {/* Progress bar */}
         <div
           ref={progressRef}
           className="relative h-1.5 group cursor-pointer mb-3 rounded-full"
@@ -121,74 +113,40 @@ export default function Controls({
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setHoverTime(null)}
         >
-          {/* Track */}
           <div className="absolute inset-0 bg-white/15 rounded-full overflow-hidden">
-            {/* Locked zone (beyond maxWatched) — subtle red tint */}
-            {maxWatchedProgress < 100 && (
-              <div
-                className="absolute inset-y-0 right-0 bg-red-500/8 rounded-full"
-                style={{ left: `${maxWatchedProgress}%` }}
-              />
-            )}
-            {/* Buffered */}
             <div
               className="absolute inset-y-0 left-0 bg-white/20 rounded-full"
               style={{ width: `${bufferedProgress}%` }}
             />
-            {/* Progress (watched) */}
             <div
               className="absolute inset-y-0 left-0 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full transition-[width] duration-100"
               style={{ width: `${progress}%` }}
             />
           </div>
 
-          {/* Max watched marker — small amber tick on the progress bar */}
-          {maxWatchedProgress > 0 && maxWatchedProgress < 100 && (
-            <div
-              className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3 bg-amber-400/70 rounded-full z-10 pointer-events-none"
-              style={{ left: `${maxWatchedProgress}%` }}
-            />
-          )}
-
-          {/* Scrub head */}
           <div
             className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg shadow-black/30
                        opacity-0 group-hover:opacity-100 transition-opacity scale-75 group-hover:scale-100"
             style={{ left: `calc(${progress}% - 7px)` }}
           />
 
-          {/* Hover tooltip */}
           {hoverTime !== null && (
             <div
-              className={`absolute -top-8 -translate-x-1/2 px-2 py-1 rounded text-[10px] font-mono whitespace-nowrap pointer-events-none flex items-center gap-1
-                ${isHoverLocked
-                  ? 'bg-red-900/90 text-red-300'
-                  : 'bg-black/80 text-white/90'
-                }`}
+              className="absolute -top-8 -translate-x-1/2 px-2 py-1 rounded text-[10px] font-mono whitespace-nowrap pointer-events-none flex items-center gap-1 bg-black/80 text-white/90"
               style={{ left: hoverX }}
             >
-              {isHoverLocked && (
-                <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" />
-                </svg>
-              )}
               {formatTime(hoverTime)}
             </div>
           )}
-
-          {/* Wider hit area */}
           <div className="absolute -inset-y-2 inset-x-0" />
         </div>
 
-        {/* Controls row */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            {/* Play/Pause */}
             <button
               id="play-pause-btn"
               onClick={onTogglePlay}
-              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all
-                         hover:scale-110 active:scale-95 cursor-pointer"
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all hover:scale-110 active:scale-95 cursor-pointer"
             >
               {isPlaying ? (
                 <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -202,7 +160,6 @@ export default function Controls({
               )}
             </button>
 
-            {/* Volume */}
             <div className="flex items-center gap-1.5 group/vol">
               <button
                 onClick={onToggleMute}
@@ -229,15 +186,12 @@ export default function Controls({
               />
             </div>
 
-            {/* Time display */}
             <span className="text-xs text-white/60 font-mono tabular-nums">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
 
-          {/* Right side */}
           <div className="flex items-center gap-2">
-            {/* Fullscreen */}
             <button
               onClick={onToggleFullscreen}
               className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center transition-all cursor-pointer"
