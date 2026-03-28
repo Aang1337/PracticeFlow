@@ -21,6 +21,7 @@ export interface VideoFile {
 export interface UseVideoPlayerReturn {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   youtubeContainerRef: React.RefObject<HTMLDivElement | null>;
+  playerContainerRef: React.RefObject<HTMLDivElement | null>;
 
   isPlaying: boolean;
   currentTime: number;
@@ -63,6 +64,7 @@ export interface UseVideoPlayerReturn {
 
 export function useVideoPlayer(): UseVideoPlayerReturn {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const playerContainerRef = useRef<HTMLDivElement | null>(null);
   const intervalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const strictTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -417,12 +419,23 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-      setIsFullscreen(true);
+      if (playerContainerRef.current) {
+        playerContainerRef.current.requestFullscreen().catch((err) => {
+          console.warn('Error attempting to enable fullscreen:', err);
+        });
+      }
     } else {
       document.exitFullscreen();
-      setIsFullscreen(false);
     }
+  }, []);
+
+  // Sync state if user explicitly presses ESC
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
   const resumeFromPause = useCallback(() => {
@@ -530,6 +543,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   return {
     videoRef,
     youtubeContainerRef: ytPlayer.containerRef,
+    playerContainerRef,
     isPlaying,
     currentTime,
     duration,

@@ -11,13 +11,14 @@ interface VideoPlayerProps {
 }
 
 export default function VideoPlayer({ player }: VideoPlayerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const hasVideos = player.playlist.length > 0;
 
   return (
     <div
-      ref={containerRef}
-      className="relative w-full aspect-video bg-zinc-950 rounded-2xl overflow-hidden shadow-2xl shadow-black/50 border border-white/5"
+      ref={player.playerContainerRef}
+      className={`relative w-full aspect-video bg-zinc-950 rounded-2xl overflow-hidden shadow-2xl shadow-black/50 border border-white/5 ${
+        player.isFullscreen ? 'rounded-none border-none' : ''
+      }`}
       onMouseMove={player.showControls}
     >
       <video

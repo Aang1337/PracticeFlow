@@ -44,11 +44,11 @@ export default function Home() {
         </header>
 
         <div className="w-full flex-shrink-0 p-4 sm:p-6 lg:p-8 pt-6 flex flex-col items-center">
-          <div className="w-full max-w-6xl shadow-2xl rounded-3xl border border-white/10 overflow-hidden bg-black aspect-video relative group">
+          <div className="w-full max-w-5xl shadow-2xl rounded-3xl border border-white/10 overflow-hidden bg-black aspect-video relative group">
             <VideoPlayer player={player} />
           </div>
 
-          <div className="w-full max-w-6xl flex flex-col sm:flex-row items-start sm:items-center justify-between text-white/30 text-xs mt-3 px-2 gap-2">
+          <div className="w-full max-w-5xl flex flex-col sm:flex-row items-start sm:items-center justify-between text-white/30 text-xs mt-3 px-2 gap-2">
             <div className="truncate max-w-md w-full font-medium text-white/60">
               {player.playlist.length > 0 && player.playlist[player.currentVideoIndex] ? (
                 player.playlist[player.currentVideoIndex].name
@@ -63,7 +63,7 @@ export default function Home() {
             </div>
           </div>
           
-          <div className="w-full max-w-6xl mt-6 lg:mt-8 pb-12">
+          <div className="w-full max-w-5xl mt-6 lg:mt-8 pb-12">
             <Notes videoId={currentVideoId} />
           </div>
         </div>
