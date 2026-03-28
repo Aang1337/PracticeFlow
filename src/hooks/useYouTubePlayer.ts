@@ -28,6 +28,7 @@ declare namespace YT {
     events?: {
       onReady?: (event: { target: Player }) => void;
       onStateChange?: (event: { data: number; target: Player }) => void;
+      onPlaybackQualityChange?: (event: { data: string; target: Player }) => void;
       onError?: (event: { data: number }) => void;
     };
   }
@@ -47,6 +48,9 @@ declare namespace YT {
     getPlayerState(): number;
     loadVideoById(videoId: string, startSeconds?: number): void;
     cueVideoById(videoId: string, startSeconds?: number): void;
+    setPlaybackQuality(suggestedQuality: string): void;
+    getPlaybackQuality(): string;
+    getAvailableQualityLevels(): string[];
     destroy(): void;
     getVideoLoadedFraction(): number;
   }
@@ -163,23 +167,39 @@ export function useYouTubePlayer(
         height: '100%',
         playerVars: {
           autoplay: 0,
-          controls: 0, // We use our own controls
+          controls: 1, // Enforced native components
+          enablejsapi: 1, // Expose internal API states
           modestbranding: 1,
           rel: 0,
           showinfo: 0,
-          iv_load_policy: 3, // No annotations
-          disablekb: 1, // We handle keyboard shortcuts ourselves
+          iv_load_policy: 3, 
+          disablekb: 1, 
           playsinline: 1,
           origin: window.location.origin,
         },
         events: {
-          onReady: () => {
+          onReady: (event) => {
             setIsReady(true);
             optionsRef.current.onReady?.();
             startPolling();
+            // Aggressively attempt to lock resolution to highest baseline securely
+            event.target.setPlaybackQuality('hd1080');
           },
           onStateChange: (event) => {
             optionsRef.current.onStateChange?.(event.data);
+          },
+          onPlaybackQualityChange: (event) => {
+             const available = event.target.getAvailableQualityLevels() || [];
+             let desired = 'hd1080';
+             
+             // Dynamic Fallback logic mapping physically to optimal resolution
+             if (!available.includes('hd1080') && available.length > 0) {
+                 desired = available[0]; 
+             }
+             
+             if (event.data !== desired) {
+                 event.target.setPlaybackQuality(desired);
+             }
           },
           onError: (event) => {
             optionsRef.current.onError?.(event.data);
