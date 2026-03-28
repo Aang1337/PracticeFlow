@@ -92,6 +92,7 @@ export interface UseYouTubePlayerOptions {
   onError?: (code: number) => void;
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   onBufferUpdate?: (buffered: number) => void;
+  onPlaybackQualityChange?: (quality: string) => void;
 }
 
 export interface UseYouTubePlayerReturn {
@@ -108,6 +109,9 @@ export interface UseYouTubePlayerReturn {
   getCurrentTime: () => number;
   getDuration: () => number;
   destroy: () => void;
+  getAvailableQualityLevels: () => string[];
+  getPlaybackQuality: () => string;
+  setPlaybackQuality: (quality: string) => void;
 }
 
 export function useYouTubePlayer(
@@ -189,17 +193,7 @@ export function useYouTubePlayer(
             optionsRef.current.onStateChange?.(event.data);
           },
           onPlaybackQualityChange: (event) => {
-             const available = event.target.getAvailableQualityLevels() || [];
-             let desired = 'hd1080';
-             
-             // Dynamic Fallback logic mapping physically to optimal resolution
-             if (!available.includes('hd1080') && available.length > 0) {
-                 desired = available[0]; 
-             }
-             
-             if (event.data !== desired) {
-                 event.target.setPlaybackQuality(desired);
-             }
+            optionsRef.current.onPlaybackQualityChange?.(event.data);
           },
           onError: (event) => {
             optionsRef.current.onError?.(event.data);
@@ -262,6 +256,18 @@ export function useYouTubePlayer(
     return playerRef.current?.getDuration() ?? 0;
   }, []);
 
+  const getAvailableQualityLevels = useCallback(() => {
+    return playerRef.current?.getAvailableQualityLevels() || [];
+  }, []);
+
+  const getPlaybackQuality = useCallback(() => {
+    return playerRef.current?.getPlaybackQuality() || 'auto';
+  }, []);
+
+  const setPlaybackQuality = useCallback((quality: string) => {
+    playerRef.current?.setPlaybackQuality(quality);
+  }, []);
+
   const destroy = useCallback(() => {
     stopPolling();
     try {
@@ -286,6 +292,9 @@ export function useYouTubePlayer(
     isMuted: isMutedFn,
     getCurrentTime,
     getDuration,
+    getAvailableQualityLevels,
+    getPlaybackQuality,
+    setPlaybackQuality,
     destroy,
   };
 }

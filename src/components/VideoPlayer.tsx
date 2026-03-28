@@ -67,9 +67,13 @@ export default function VideoPlayer({ player }: VideoPlayerProps) {
           isMuted={player.isMuted}
           buffered={player.buffered}
           maxWatchedTime={player.maxWatchedTime}
+          availableQualities={player.availableQualities}
+          currentQuality={player.currentQuality}
+          isYouTubeSource={player.isYouTubeSource}
           onTogglePlay={player.togglePlay}
           onSeek={player.seek}
           onVolumeChange={player.setVolume}
+          onChangeQuality={player.changeQuality}
           onToggleMute={player.toggleMute}
           onToggleFullscreen={player.toggleFullscreen}
           visible={player.controlsVisible}

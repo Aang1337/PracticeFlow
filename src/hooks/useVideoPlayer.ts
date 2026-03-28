@@ -36,6 +36,10 @@ export interface UseVideoPlayerReturn {
   strictCountdown: number;
   maxWatchedTime: number;
 
+  availableQualities: string[];
+  currentQuality: string;
+  changeQuality: (quality: string) => void;
+
   playlist: VideoFile[];
   currentVideoIndex: number;
 
@@ -78,7 +82,10 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   const [isPaused, setIsPaused] = useState(false);
   const [timeUntilPause, setTimeUntilPause] = useState(FIXED_INTERVAL);
   const [strictCountdown, setStrictCountdown] = useState(0);
-  const [lastPauseMarker, setLastPauseMarker] = useState(0); // Tracks progressive Native timestamps globally
+  const [lastPauseMarker, setLastPauseMarker] = useState(0);
+
+  const [availableQualities, setAvailableQualities] = useState<string[]>([]);
+  const [currentQuality, setCurrentQuality] = useState<string>('auto');
 
   const [controlsVisible, setControlsVisible] = useState(true);
 
@@ -120,15 +127,25 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     }, [isYouTubeSource]),
     onStateChange: useCallback((state: number) => {
       if (!isYouTubeSource) return;
-      if (state === 1) setIsPlaying(true);
-      else if (state === 2) setIsPlaying(false);
-      else if (state === 0) {
+      if (state === 1) {
+        setIsPlaying(true);
+        const qLevels = ytPlayer.getAvailableQualityLevels();
+        if (qLevels.length > 0) setAvailableQualities(qLevels);
+        setCurrentQuality(ytPlayer.getPlaybackQuality());
+      } else if (state === 2) {
+        setIsPlaying(false);
+      } else if (state === 0) {
         setIsPlaying(false);
         if (currentVideoIndex < playlist.length - 1) {
           setCurrentVideoIndex((i) => i + 1);
         }
       }
     }, [isYouTubeSource, currentVideoIndex, playlist.length]),
+    onPlaybackQualityChange: useCallback((quality: string) => {
+      if (isYouTubeSource) {
+        setCurrentQuality(quality);
+      }
+    }, [isYouTubeSource]),
   });
 
   const ytLoadVideo = ytPlayer.loadVideo;
@@ -393,6 +410,14 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     }
   }, [isYouTubeSource, ytIsMuted, ytUnmute, ytMute]);
 
+  const changeQuality = useCallback((quality: string) => {
+    if (isYouTubeSource) {
+      ytPlayer.setPlaybackQuality(quality);
+      const updatedQuality = ytPlayer.getPlaybackQuality(); // Get verification realistically
+      setCurrentQuality(updatedQuality || quality);
+    }
+  }, [isYouTubeSource, ytPlayer]);
+
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
       if (playerContainerRef.current) {
@@ -549,6 +574,9 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     timeUntilPause,
     strictCountdown,
     maxWatchedTime,
+    availableQualities,
+    currentQuality,
+    changeQuality,
     playlist,
     currentVideoIndex,
     youtubeApiKey,
