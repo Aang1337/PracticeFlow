@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { usePauseSound } from './usePauseSound';
 import { useYouTubePlayer } from './useYouTubePlayer';
-import { PracticeMode, DEFAULT_INTERVAL, DEFAULT_MODE, STRICT_COUNTDOWN, ALWAYS_STRICT_COUNTDOWN } from '@/utils/constants';
+import { DEFAULT_INTERVAL, STRICT_COUNTDOWN } from '@/utils/constants';
 
 export type VideoSource = 'local' | 'youtube';
 
@@ -12,7 +12,7 @@ export interface VideoFile {
   id: string;
   name: string;
   url: string;
-  file?: File; // Native file object if uploaded directly
+  file?: File;
   source: VideoSource;
   youtubeId?: string;
   thumbnail?: string;
@@ -36,18 +36,10 @@ export interface UseVideoPlayerReturn {
 
   interval: number;
   setInterval: (val: number) => void;
-  mode: PracticeMode;
-  setMode: (mode: PracticeMode) => void;
-
-  practiceDisabled: boolean;
-  setPracticeDisabled: (val: boolean) => void;
-  effectiveMode: PracticeMode;
 
   playlist: VideoFile[];
   currentVideoIndex: number;
 
-  youtubeMode: boolean;
-  setYoutubeMode: (on: boolean) => void;
   youtubeApiKey: string;
   setYoutubeApiKey: (key: string) => void;
   isYouTubeSource: boolean;
@@ -74,11 +66,8 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   const strictTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Interval & Mode (Persistent globals)
   const [interval, setIntervalState] = useLocalStorage('pf-interval', DEFAULT_INTERVAL);
-  const [mode, setModeState] = useLocalStorage<PracticeMode>('pf-mode', DEFAULT_MODE);
 
-  // Core video state
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -87,34 +76,22 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [buffered, setBuffered] = useState(0);
 
-  // Timers
   const [isPaused, setIsPaused] = useState(false);
   const [timeUntilPause, setTimeUntilPause] = useState(DEFAULT_INTERVAL);
   const [strictCountdown, setStrictCountdown] = useState(0);
 
-  // Controls
   const [controlsVisible, setControlsVisible] = useState(true);
 
-  // Playlist
   const [playlist, setPlaylist] = useState<VideoFile[]>([]);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
 
-  // YouTube options
-  const [youtubeMode, setYoutubeMode] = useState(false);
   const [youtubeApiKey, setYoutubeApiKeyState] = useLocalStorage('pf-yt-api-key', '');
 
   const currentVideo = playlist[currentVideoIndex];
   const isYouTubeSource = currentVideo?.source === 'youtube';
 
-  // Per-video practice skip setting
-  const practiceDisabledKey = currentVideo ? `pf-skip-${currentVideo.id}` : 'pf-skip-default';
-  const [practiceDisabled, setPracticeDisabledState] = useLocalStorage(practiceDisabledKey, false);
-
-  const effectiveMode = practiceDisabled ? 'normal' : mode;
-
   const { playChime } = usePauseSound();
 
-  // Reset internal clock when selected interval changes
   useEffect(() => {
     setTimeUntilPause(interval);
   }, [interval]);
@@ -124,7 +101,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
       if (isYouTubeSource) {
         setCurrentTime(time);
         setDuration(dur);
-        // We sync current time continuously to localstorage to avoid data loss
         if (currentVideo) {
           try {
             window.localStorage.setItem(`pf-time-${currentVideo.id}`, time.toString());
@@ -160,31 +136,19 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   const ytUnmute = ytPlayer.unmute;
   const ytIsMuted = ytPlayer.isMuted;
 
-  // Trigger practice pause
   const triggerPause = useCallback(() => {
-    if (isYouTubeSource) {
-      ytPause();
-    } else {
+    if (isYouTubeSource) ytPause();
+    else {
       const video = videoRef.current;
       if (!video || video.paused) return;
       video.pause();
     }
-
     setIsPlaying(false);
     setIsPaused(true);
+    playChime();
+    setStrictCountdown(STRICT_COUNTDOWN); // Enforce Strict unconditionally
+  }, [playChime, isYouTubeSource, ytPause]);
 
-    if (!practiceDisabled) {
-      playChime();
-    }
-
-    if (effectiveMode === 'strict') {
-      setStrictCountdown(STRICT_COUNTDOWN);
-    } else if (effectiveMode === 'always-strict') {
-      setStrictCountdown(ALWAYS_STRICT_COUNTDOWN);
-    }
-  }, [effectiveMode, playChime, isYouTubeSource, ytPause, practiceDisabled]);
-
-  // Main countdown timer to trigger pause
   useEffect(() => {
     if (intervalTimerRef.current) {
       clearInterval(intervalTimerRef.current);
@@ -196,7 +160,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
         setTimeUntilPause((prev) => {
           if (prev <= 1) {
             triggerPause();
-            return interval; // Reset loop immediately after trigger
+            return interval; 
           }
           return prev - 1;
         });
@@ -208,7 +172,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     };
   }, [isPlaying, isPaused, interval, triggerPause]);
 
-  // Strict Practice Overlay Countdown
   useEffect(() => {
     if (strictTimerRef.current) {
       clearInterval(strictTimerRef.current);
@@ -232,7 +195,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     };
   }, [isPaused, strictCountdown]);
 
-  // Local Video Events & persistence
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -276,7 +238,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     };
   }, [currentVideoIndex, playlist.length, isYouTubeSource, currentVideo]);
 
-  // Init local videos and saved playlists on load
+  // Handle Mount: Hydrate videos natively and scan for currently active video ID
   useEffect(() => {
     async function loadVideos() {
       let combined: VideoFile[] = [];
@@ -297,7 +259,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
         console.warn('Could not fetch local videos', e);
       }
 
-      // Merge saved YouTube playlist
       try {
         if (typeof window !== 'undefined') {
           const storedYt = window.localStorage.getItem('pf-yt-playlist');
@@ -311,11 +272,20 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
       } catch (e) {}
 
       setPlaylist(combined);
+
+      if (typeof window !== 'undefined') {
+        const savedActiveId = window.localStorage.getItem('pf-current-video-id');
+        if (savedActiveId) {
+          const matchedIdx = combined.findIndex((v) => v.id === savedActiveId);
+          if (matchedIdx > -1) {
+            setCurrentVideoIndex(matchedIdx);
+          }
+        }
+      }
     }
     loadVideos();
   }, []);
 
-  // Save Youtube videos locally when changed
   useEffect(() => {
     const ytVideos = playlist.filter((v) => v.source === 'youtube');
     if (typeof window !== 'undefined') {
@@ -325,12 +295,14 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     }
   }, [playlist]);
 
-  // Load correct video when index changes, retrieving saved watchtime
   useEffect(() => {
     const vid = playlist[currentVideoIndex];
     if (!vid) return;
 
-    // Reset loop
+    if (typeof window !== 'undefined') {
+       window.localStorage.setItem('pf-current-video-id', vid.id);
+    }
+
     setTimeUntilPause(interval);
     setIsPlaying(false);
     setIsPaused(false);
@@ -346,9 +318,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     if (vid.source === 'youtube' && vid.youtubeId) {
       if (ytIsReady) {
         ytLoadVideo(vid.youtubeId);
-        // Let it load fully, it will auto-play or not based on youtube API state.
-        // If we want it to resume, we issue a seek immediately. 
-        // Note: YT iframe API has nuances seeking before ready, but we'll issue it early.
         ytSeekTo(savedTime);
       }
     } else {
@@ -360,35 +329,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
       }
     }
   }, [currentVideoIndex, playlist, ytIsReady, ytLoadVideo, interval, ytSeekTo]);
-
-  // Keyboard Ctrl + 1
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore text entry elements
-      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
-
-      if ((e.ctrlKey || e.metaKey) && e.key === '1') {
-        e.preventDefault();
-        setPracticeDisabledState(!practiceDisabled);
-        return;
-      }
-
-      if (e.key === ' ') {
-        e.preventDefault();
-        if (isPaused) resumeFromPause();
-        else togglePlay();
-      } else if (e.key === 'r' || e.key === 'R') {
-        if (isPaused) resumeFromPause();
-      } else if (e.key === 'f' || e.key === 'F') {
-        toggleFullscreen();
-      } else if (e.key === 'm' || e.key === 'M') {
-        toggleMute();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPaused, isPlaying, strictCountdown, effectiveMode, isYouTubeSource, practiceDisabled, setPracticeDisabledState]);
 
   const togglePlay = useCallback(() => {
     if (isYouTubeSource) {
@@ -451,16 +391,14 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   }, []);
 
   const resumeFromPause = useCallback(() => {
-    if (effectiveMode === 'strict' && strictCountdown > 0) return;
-    if (effectiveMode === 'always-strict' && strictCountdown > 0) return;
+    if (strictCountdown > 0) return; // Unconditionally block native skipping sequences
 
     setIsPaused(false);
     setTimeUntilPause(interval);
     setStrictCountdown(0);
 
-    // EXACT TIME RESUME (No 8-sec reverse modification)
+    // EXACT TIME RESUME
     if (isYouTubeSource) {
-      // For YouTube, it preserves state natively at pause exactly.
       ytPlay();
       setIsPlaying(true);
     } else {
@@ -469,7 +407,30 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
       video.play();
       setIsPlaying(true);
     }
-  }, [effectiveMode, strictCountdown, interval, isYouTubeSource, ytPlay, ytSeekTo, currentTime]);
+  }, [strictCountdown, interval, isYouTubeSource, ytPlay]);
+  
+  // Moved keyboard controls below function callbacks
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
+
+      if (e.key === ' ') {
+        e.preventDefault();
+        if (isPaused) resumeFromPause();
+        else togglePlay();
+      } else if (e.key === 'r' || e.key === 'R') {
+        if (isPaused) resumeFromPause();
+      } else if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
+      } else if (e.key === 'm' || e.key === 'M') {
+        toggleMute();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPaused, isPlaying, strictCountdown, isYouTubeSource, toggleFullscreen, toggleMute, togglePlay, resumeFromPause]);
+
 
   const addYouTubeVideos = useCallback((videos: { id: string; title: string; thumbnail?: string }[]) => {
     const newVideos: VideoFile[] = videos.map((v) => ({
@@ -503,7 +464,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     setPlaylist((prev) => {
       const idx = prev.findIndex((v) => v.id === id);
       if (idx > -1 && prev[idx].file) {
-        URL.revokeObjectURL(prev[idx].url); // Clean up memory
+        URL.revokeObjectURL(prev[idx].url); 
       }
 
       const updated = prev.filter((v) => v.id !== id);
@@ -548,15 +509,8 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     strictCountdown,
     interval,
     setInterval: setIntervalState,
-    mode,
-    setMode: setModeState,
-    practiceDisabled,
-    setPracticeDisabled: setPracticeDisabledState,
-    effectiveMode,
     playlist,
     currentVideoIndex,
-    youtubeMode,
-    setYoutubeMode,
     youtubeApiKey,
     setYoutubeApiKey,
     isYouTubeSource,

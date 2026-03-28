@@ -53,9 +53,7 @@ export default function VideoPlayer({ player }: VideoPlayerProps) {
 
       <PauseOverlay
         isPaused={player.isPaused}
-        effectiveMode={player.effectiveMode}
         strictCountdown={player.strictCountdown}
-        practiceDisabled={player.practiceDisabled}
         onResume={player.resumeFromPause}
       />
 
