@@ -245,6 +245,7 @@ export default function Controls({
                       <button
                         key={q}
                         onClick={() => {
+                          // UI Note: onPlaybackQualityChange logic moved to hook to avoid circular ref
                           onChangeQuality(q);
                           setShowQualityMenu(false);
                         }}
@@ -255,6 +256,12 @@ export default function Controls({
                         {formatQuality(q)}
                       </button>
                   ))}
+
+                  <div className="px-4 py-2 bg-white/[0.02] border-t border-white/10">
+                    <p className="text-[10px] text-white/30 leading-tight">
+                      Quality depends on network and video source
+                    </p>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>

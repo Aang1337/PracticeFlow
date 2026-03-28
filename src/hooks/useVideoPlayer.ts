@@ -86,6 +86,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
 
   const [availableQualities, setAvailableQualities] = useState<string[]>([]);
   const [currentQuality, setCurrentQuality] = useState<string>('auto');
+  const [preferredQuality, setPreferredQuality] = useState<string>('hd1080');
 
   const [controlsVisible, setControlsVisible] = useState(true);
 
@@ -129,9 +130,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
       if (!isYouTubeSource) return;
       if (state === 1) {
         setIsPlaying(true);
-        const qLevels = ytPlayer.getAvailableQualityLevels();
-        if (qLevels.length > 0) setAvailableQualities(qLevels);
-        setCurrentQuality(ytPlayer.getPlaybackQuality());
       } else if (state === 2) {
         setIsPlaying(false);
       } else if (state === 0) {
@@ -157,6 +155,22 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   const ytMute = ytPlayer.mute;
   const ytUnmute = ytPlayer.unmute;
   const ytIsMuted = ytPlayer.isMuted;
+
+  // Sync available qualities and current resolution whenever YouTube enters PLAYING state
+  useEffect(() => {
+    if (isYouTubeSource && isPlaying && ytIsReady) {
+      const qLevels = ytPlayer.getAvailableQualityLevels();
+      if (qLevels.length > 0) setAvailableQualities(qLevels);
+      setCurrentQuality(ytPlayer.getPlaybackQuality());
+    }
+  }, [isYouTubeSource, isPlaying, ytIsReady, ytPlayer]);
+
+  // Enforce preferred quality if YouTube auto-switches due to network fluctuation
+  useEffect(() => {
+    if (isYouTubeSource && ytIsReady && preferredQuality !== 'auto' && currentQuality !== preferredQuality) {
+      ytPlayer.setPlaybackQuality(preferredQuality);
+    }
+  }, [isYouTubeSource, ytIsReady, preferredQuality, currentQuality, ytPlayer]);
 
   // Reactivity Engine: Watch native currentTime progression exclusively and boundary trap it safely
   useEffect(() => {
@@ -354,6 +368,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     if (vid.source === 'youtube' && vid.youtubeId) {
       if (ytIsReady) {
         ytLoadVideo(vid.youtubeId);
+        ytPlayer.setPlaybackQuality(preferredQuality);
         ytSeekTo(initialSafeTime);
       }
     } else {
@@ -423,8 +438,9 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
 
   const changeQuality = useCallback((quality: string) => {
     if (isYouTubeSource) {
+      setPreferredQuality(quality);
       ytPlayer.setPlaybackQuality(quality);
-      const updatedQuality = ytPlayer.getPlaybackQuality(); // Get verification realistically
+      const updatedQuality = ytPlayer.getPlaybackQuality(); 
       setCurrentQuality(updatedQuality || quality);
     }
   }, [isYouTubeSource, ytPlayer]);
