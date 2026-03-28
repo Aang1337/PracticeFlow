@@ -1,52 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatTime } from '@/utils/formatTime';
 
 interface PauseOverlayProps {
   isPaused: boolean;
   strictCountdown: number;
+  isBypassing: boolean;
   onResume: (forceSkip?: boolean) => void;
+  onStartBypass: () => void;
 }
 
 export default function PauseOverlay({
   isPaused,
   strictCountdown,
+  isBypassing,
   onResume,
+  onStartBypass,
 }: PauseOverlayProps) {
-  const [isSkipping, setIsSkipping] = useState(false);
-  const [skipCountdown, setSkipCountdown] = useState(3);
-
-  // If paused state changes (e.g., resumes externally or new pause starts), reset our override state securely
-  useEffect(() => {
-    if (!isPaused) {
-      setIsSkipping(false);
-      setSkipCountdown(3);
-    }
-  }, [isPaused]);
-
-  // Handle the custom 3-second override countdown locally natively
-  useEffect(() => {
-    let timer: ReturnType<typeof setInterval>;
-    if (isSkipping && skipCountdown > 0) {
-      timer = setInterval(() => {
-        setSkipCountdown((prev) => prev - 1);
-      }, 1000);
-    } else if (isSkipping && skipCountdown <= 0) {
-      // Execute the actual continuation native to the external handler unconditionally
-      onResume(true);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [isSkipping, skipCountdown, onResume]);
-
-  const handleSkipInitiation = () => {
-    setIsSkipping(true);
-    setSkipCountdown(3);
-  };
-
   const canResume = strictCountdown <= 0;
   // Block the Skip button for the first 3 seconds of the pause (from 300s down to 297s natively)
   const isSkipDisabled = strictCountdown > 297; 
@@ -71,7 +42,7 @@ export default function PauseOverlay({
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           >
             <AnimatePresence mode="wait">
-              {!isSkipping ? (
+              {!isBypassing ? (
                 // ───── STANDARD STRICT STATE ─────
                 <motion.div
                   key="strict-mode"
@@ -109,7 +80,7 @@ export default function PauseOverlay({
                   ) : (
                     <div className="mt-4 flex flex-col items-center gap-2">
                       <button
-                        onClick={handleSkipInitiation}
+                        onClick={onStartBypass}
                         disabled={isSkipDisabled}
                         className={`text-xs px-6 py-2 rounded-full border border-white/10 uppercase tracking-widest font-semibold transition-all duration-300 ${isSkipDisabled ? 'opacity-30 cursor-not-allowed bg-transparent text-white/30' : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 cursor-pointer'}`}
                         title={isSkipDisabled ? 'Wait a few seconds before skipping...' : 'Opt out of practice loop'}
@@ -144,14 +115,14 @@ export default function PauseOverlay({
 
                   <div className="mt-6 flex items-center justify-center">
                     <motion.div
-                      key={skipCountdown}
+                      key={strictCountdown}
                       initial={{ opacity: 0, y: 15, scale: 0.8 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -15, scale: 0.8 }}
                       transition={{ duration: 0.4 }}
                       className="text-6xl font-bold bg-gradient-to-r from-emerald-300 to-teal-300 bg-clip-text text-transparent"
                     >
-                      {skipCountdown}
+                      {strictCountdown}
                     </motion.div>
                   </div>
                 </motion.div>

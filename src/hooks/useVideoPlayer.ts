@@ -35,6 +35,7 @@ export interface UseVideoPlayerReturn {
   timeUntilPause: number;
   strictCountdown: number;
   maxWatchedTime: number;
+  isBypassing: boolean;
 
   availableQualities: string[];
   currentQuality: string;
@@ -59,6 +60,7 @@ export interface UseVideoPlayerReturn {
   toggleMute: () => void;
   toggleFullscreen: () => void;
   resumeFromPause: (forceSkip?: boolean) => void;
+  startBypass: () => void;
   controlsVisible: boolean;
   showControls: () => void;
 }
@@ -83,6 +85,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   const [timeUntilPause, setTimeUntilPause] = useState(FIXED_INTERVAL);
   const [strictCountdown, setStrictCountdown] = useState(0);
   const [lastPauseMarker, setLastPauseMarker] = useState(0);
+  const [isBypassing, setIsBypassing] = useState(false);
 
   const [availableQualities, setAvailableQualities] = useState<string[]>([]);
   const [currentQuality, setCurrentQuality] = useState<string>('auto');
@@ -218,6 +221,8 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
           return prev - 1;
         });
       }, 1000);
+    } else {
+      setIsBypassing(false);
     }
 
     return () => {
@@ -471,6 +476,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
 
     setIsPaused(false);
     setStrictCountdown(0);
+    setIsBypassing(false);
 
     // REWIND 8 SECONDS NATIVELY
     const rewindTime = Math.max(0, currentTime - 8);
@@ -502,6 +508,11 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
       hasResumedRef.current = false;
     }
   }, [isPaused, strictCountdown, resumeFromPause]);
+
+  const startBypass = useCallback(() => {
+    setIsBypassing(true);
+    setStrictCountdown(3);
+  }, []);
   
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -601,6 +612,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     timeUntilPause,
     strictCountdown,
     maxWatchedTime,
+    isBypassing,
     availableQualities,
     currentQuality,
     changeQuality,
@@ -620,6 +632,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     toggleMute,
     toggleFullscreen,
     resumeFromPause,
+    startBypass,
     controlsVisible,
     showControls,
   };

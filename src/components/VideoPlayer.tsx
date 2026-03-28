@@ -55,7 +55,9 @@ export default function VideoPlayer({ player }: VideoPlayerProps) {
       <PauseOverlay
         isPaused={player.isPaused}
         strictCountdown={player.strictCountdown}
+        isBypassing={player.isBypassing}
         onResume={player.resumeFromPause}
+        onStartBypass={player.startBypass}
       />
 
       {hasVideos && (
