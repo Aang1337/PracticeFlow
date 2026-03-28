@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { usePauseSound } from './usePauseSound';
 import { useYouTubePlayer } from './useYouTubePlayer';
-import { DEFAULT_INTERVAL, STRICT_COUNTDOWN } from '@/utils/constants';
+import { FIXED_INTERVAL, STRICT_COUNTDOWN } from '@/utils/constants';
 
 export type VideoSource = 'local' | 'youtube';
 
@@ -36,9 +36,6 @@ export interface UseVideoPlayerReturn {
   strictCountdown: number;
   maxWatchedTime: number;
 
-  interval: number;
-  setInterval: (val: number) => void;
-
   playlist: VideoFile[];
   currentVideoIndex: number;
 
@@ -65,11 +62,8 @@ export interface UseVideoPlayerReturn {
 export function useVideoPlayer(): UseVideoPlayerReturn {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
-  const intervalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const strictTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const [interval, setIntervalState] = useLocalStorage('pf-interval', DEFAULT_INTERVAL);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -81,8 +75,9 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   const [maxWatchedTime, setMaxWatchedTime] = useState(0);
 
   const [isPaused, setIsPaused] = useState(false);
-  const [timeUntilPause, setTimeUntilPause] = useState(DEFAULT_INTERVAL);
+  const [timeUntilPause, setTimeUntilPause] = useState(FIXED_INTERVAL);
   const [strictCountdown, setStrictCountdown] = useState(0);
+  const [lastPauseMarker, setLastPauseMarker] = useState(0); // Tracks progressive Native timestamps globally
 
   const [controlsVisible, setControlsVisible] = useState(true);
 
@@ -96,17 +91,12 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
 
   const { playChime } = usePauseSound();
 
-  useEffect(() => {
-    setTimeUntilPause(interval);
-  }, [interval]);
-
   const ytPlayer = useYouTubePlayer({
     onTimeUpdate: useCallback((time: number, dur: number) => {
       if (isYouTubeSource) {
         setCurrentTime(time);
         setDuration(dur);
 
-        // Progressively lock forward limits natively
         setMaxWatchedTime((prevMax) => {
           const newMax = Math.max(prevMax, time);
           if (currentVideo && newMax > prevMax) {
@@ -150,42 +140,28 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   const ytUnmute = ytPlayer.unmute;
   const ytIsMuted = ytPlayer.isMuted;
 
-  const triggerPause = useCallback(() => {
-    if (isYouTubeSource) ytPause();
-    else {
-      const video = videoRef.current;
-      if (!video || video.paused) return;
-      video.pause();
-    }
-    setIsPlaying(false);
-    setIsPaused(true);
-    playChime();
-    setStrictCountdown(STRICT_COUNTDOWN); // Enforce Strict unconditionally
-  }, [playChime, isYouTubeSource, ytPause]);
-
+  // Reactivity Engine: Watch native currentTime progression exclusively and boundary trap it safely
   useEffect(() => {
-    if (intervalTimerRef.current) {
-      clearInterval(intervalTimerRef.current);
-      intervalTimerRef.current = null;
+    const currentChunk = Math.floor(currentTime / FIXED_INTERVAL) * FIXED_INTERVAL;
+    
+    if (currentChunk >= FIXED_INTERVAL && currentChunk > lastPauseMarker && !isPaused) {
+      setLastPauseMarker(currentChunk);
+      
+      if (isYouTubeSource) ytPause();
+      else videoRef.current?.pause();
+
+      setIsPlaying(false);
+      setIsPaused(true);
+      playChime();
+      setStrictCountdown(STRICT_COUNTDOWN);
+    } else if (!isPaused) {
+      const baseTarget = (Math.floor(currentTime / FIXED_INTERVAL) + 1) * FIXED_INTERVAL;
+      const nextTarget = Math.max(baseTarget, lastPauseMarker + FIXED_INTERVAL);
+      setTimeUntilPause(nextTarget - currentTime);
     }
+  }, [currentTime, isPaused, lastPauseMarker, isYouTubeSource, ytPause, playChime]);
 
-    if (isPlaying && !isPaused) {
-      intervalTimerRef.current = setInterval(() => {
-        setTimeUntilPause((prev) => {
-          if (prev <= 1) {
-            triggerPause();
-            return interval; 
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-
-    return () => {
-      if (intervalTimerRef.current) clearInterval(intervalTimerRef.current);
-    };
-  }, [isPlaying, isPaused, interval, triggerPause]);
-
+  // Strict Practice Overlay Countdown
   useEffect(() => {
     if (strictTimerRef.current) {
       clearInterval(strictTimerRef.current);
@@ -209,6 +185,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     };
   }, [isPaused, strictCountdown]);
 
+  // Local Video Events & persistence
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -218,7 +195,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
         const t = video.currentTime;
         setCurrentTime(t);
 
-        // Progressively lock forward limits natively
         setMaxWatchedTime((prevMax) => {
             const newMax = Math.max(prevMax, t);
             if (currentVideo && newMax > prevMax) {
@@ -262,7 +238,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     };
   }, [currentVideoIndex, playlist.length, isYouTubeSource, currentVideo]);
 
-  // Handle Mount: Hydrate videos natively and scan for currently active video ID
   useEffect(() => {
     async function loadVideos() {
       let combined: VideoFile[] = [];
@@ -327,7 +302,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
        window.localStorage.setItem('pf-current-video-id', vid.id);
     }
 
-    setTimeUntilPause(interval);
     setIsPlaying(false);
     setIsPaused(false);
 
@@ -345,8 +319,10 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
 
     setMaxWatchedTime(savedMaxTime);
     setCurrentTime(savedTime);
+    
+    // Recalibrate dynamic native boundaries from initialized time seamlessly
+    setLastPauseMarker(Math.floor(savedTime / FIXED_INTERVAL) * FIXED_INTERVAL);
 
-    // Hard-fix: Ensure saved time cannot accidentally circumvent max logic natively
     const initialSafeTime = Math.min(savedTime, savedMaxTime > 0 ? savedMaxTime : savedTime);
 
     if (vid.source === 'youtube' && vid.youtubeId) {
@@ -362,7 +338,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
         video.load();
       }
     }
-  }, [currentVideoIndex, playlist, ytIsReady, ytLoadVideo, interval, ytSeekTo]);
+  }, [currentVideoIndex, playlist, ytIsReady, ytLoadVideo, ytSeekTo]);
 
   const togglePlay = useCallback(() => {
     if (isYouTubeSource) {
@@ -377,8 +353,10 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   }, [isYouTubeSource, isPlaying, ytPause, ytPlay]);
 
   const seek = useCallback((time: number) => {
-    // CLAMP FORWARD PROGRESS STRICTLY
     const safeTime = Math.min(time, maxWatchedTime);
+    
+    // Explicitly update progressive blocks natively on seeks to avoid instant dual-pauses natively
+    setLastPauseMarker(Math.floor(safeTime / FIXED_INTERVAL) * FIXED_INTERVAL);
 
     if (isYouTubeSource) {
       ytSeekTo(safeTime);
@@ -429,7 +407,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     }
   }, []);
 
-  // Sync state if user explicitly presses ESC
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -439,11 +416,13 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   }, []);
 
   const resumeFromPause = useCallback(() => {
+    // Unconditionally block native skipping sequences manually outside the overlay components natively
+    if (strictCountdown > 0) return; 
+
     setIsPaused(false);
-    setTimeUntilPause(interval);
     setStrictCountdown(0);
 
-    // REWIND 8 SECONDS ON RESUME
+    // REWIND 8 SECONDS NATIVELY
     const rewindTime = Math.max(0, currentTime - 8);
 
     if (isYouTubeSource) {
@@ -459,19 +438,18 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
       video.play();
       setIsPlaying(true);
     }
-  }, [interval, isYouTubeSource, ytPlay]);
+  }, [strictCountdown, isYouTubeSource, ytPlay, ytSeekTo, currentTime]);
   
-  // Moved keyboard controls below function callbacks
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
 
       if (e.key === ' ') {
         e.preventDefault();
-        if (isPaused) return; // Disallow native bypass using Spacebar immediately if in PauseOverlay natively
+        if (isPaused) return; 
         else togglePlay();
       } else if (e.key === 'r' || e.key === 'R') {
-        if (isPaused) return; // Wait out strict lock natively 
+        if (isPaused) return; 
       } else if (e.key === 'f' || e.key === 'F') {
         toggleFullscreen();
       } else if (e.key === 'm' || e.key === 'M') {
@@ -482,7 +460,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     return () => window.removeEventListener('keydown', handleKeyDown);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPaused, isPlaying, strictCountdown, isYouTubeSource, toggleFullscreen, toggleMute, togglePlay, resumeFromPause]);
-
 
   const addYouTubeVideos = useCallback((videos: { id: string; title: string; thumbnail?: string }[]) => {
     const newVideos: VideoFile[] = videos.map((v) => ({
@@ -561,8 +538,6 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     timeUntilPause,
     strictCountdown,
     maxWatchedTime,
-    interval,
-    setInterval: setIntervalState,
     playlist,
     currentVideoIndex,
     youtubeApiKey,

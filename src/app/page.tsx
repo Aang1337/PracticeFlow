@@ -4,7 +4,6 @@ import { useVideoPlayer } from '@/hooks/useVideoPlayer';
 import VideoPlayer from '@/components/VideoPlayer';
 import Timer from '@/components/Timer';
 import Sidebar from '@/components/Sidebar';
-import IntervalSelector from '@/components/IntervalSelector';
 import Notes from '@/components/Notes';
 
 export default function Home() {
@@ -32,11 +31,9 @@ export default function Home() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4 justify-center sm:justify-end w-full sm:w-auto">
-            <IntervalSelector value={player.interval} onChange={player.setInterval} />
             <div className="pl-4 ml-2 border-l border-white/10 hidden xl:flex">
                 <Timer
                   timeUntilPause={player.timeUntilPause}
-                  interval={player.interval}
                   isPlaying={player.isPlaying}
                 />
             </div>

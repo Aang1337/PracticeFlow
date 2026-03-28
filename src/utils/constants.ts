@@ -1,6 +1,4 @@
-export const INTERVALS = [30, 60, 90] as const;
-
-export const DEFAULT_INTERVAL = 60;
+export const FIXED_INTERVAL = 60; // 1 minute exact boundaries
 
 export const STRICT_COUNTDOWN = 300; // 5 minutes in seconds
 
