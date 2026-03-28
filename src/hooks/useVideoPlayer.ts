@@ -54,7 +54,7 @@ export interface UseVideoPlayerReturn {
   setVolume: (vol: number) => void;
   toggleMute: () => void;
   toggleFullscreen: () => void;
-  resumeFromPause: () => void;
+  resumeFromPause: (forceSkip?: boolean) => void;
   controlsVisible: boolean;
   showControls: () => void;
 }
@@ -415,9 +415,9 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  const resumeFromPause = useCallback(() => {
+  const resumeFromPause = useCallback((forceSkip = false) => {
     // Unconditionally block native skipping sequences manually outside the overlay components natively
-    if (strictCountdown > 0) return; 
+    if (strictCountdown > 0 && !forceSkip) return; 
 
     setIsPaused(false);
     setStrictCountdown(0);

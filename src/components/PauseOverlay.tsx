@@ -7,7 +7,7 @@ import { formatTime } from '@/utils/formatTime';
 interface PauseOverlayProps {
   isPaused: boolean;
   strictCountdown: number;
-  onResume: () => void;
+  onResume: (forceSkip?: boolean) => void;
 }
 
 export default function PauseOverlay({
@@ -35,7 +35,7 @@ export default function PauseOverlay({
       }, 1000);
     } else if (isSkipping && skipCountdown <= 0) {
       // Execute the actual continuation native to the external handler unconditionally
-      onResume();
+      onResume(true);
     }
     return () => {
       if (timer) clearInterval(timer);
@@ -99,7 +99,7 @@ export default function PauseOverlay({
 
                   {canResume ? (
                     <motion.button
-                      onClick={onResume}
+                      onClick={() => onResume()}
                       className="mt-2 w-full sm:w-auto px-10 py-3.5 rounded-2xl font-bold text-sm uppercase tracking-widest transition-all duration-300 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-[0_10px_30px_rgba(139,92,246,0.3)] hover:shadow-[0_10px_40px_rgba(139,92,246,0.4)] cursor-pointer"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
