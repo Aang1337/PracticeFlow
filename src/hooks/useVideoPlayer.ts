@@ -443,13 +443,19 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     setTimeUntilPause(interval);
     setStrictCountdown(0);
 
-    // EXACT TIME RESUME
+    // REWIND 8 SECONDS ON RESUME
+    const rewindTime = Math.max(0, currentTime - 8);
+
     if (isYouTubeSource) {
+      ytSeekTo(rewindTime);
+      setCurrentTime(rewindTime);
       ytPlay();
       setIsPlaying(true);
     } else {
       const video = videoRef.current;
       if (!video) return;
+      video.currentTime = rewindTime;
+      setCurrentTime(rewindTime);
       video.play();
       setIsPlaying(true);
     }
