@@ -64,6 +64,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
   const strictTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasResumedRef = useRef(false);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -161,14 +162,11 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     }
   }, [currentTime, isPaused, lastPauseMarker, isYouTubeSource, ytPause, playChime]);
 
-  // Strict Practice Overlay Countdown
+  // Strict Practice Overlay Countdown - Optimized to prevent 1-second remount iterations
   useEffect(() => {
-    if (strictTimerRef.current) {
-      clearInterval(strictTimerRef.current);
-      strictTimerRef.current = null;
-    }
-
-    if (isPaused && strictCountdown > 0) {
+    if (isPaused) {
+      if (strictTimerRef.current) clearInterval(strictTimerRef.current);
+      
       strictTimerRef.current = setInterval(() => {
         setStrictCountdown((prev) => {
           if (prev <= 1) {
@@ -183,7 +181,7 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     return () => {
       if (strictTimerRef.current) clearInterval(strictTimerRef.current);
     };
-  }, [isPaused, strictCountdown]);
+  }, [isPaused]);
 
   // Local Video Events & persistence
   useEffect(() => {
@@ -440,10 +438,16 @@ export function useVideoPlayer(): UseVideoPlayerReturn {
     }
   }, [strictCountdown, isYouTubeSource, ytPlay, ytSeekTo, currentTime]);
 
-  // Auto-resume the video automatically when countdown reaches 0
+  // Auto-resume the video automatically when countdown reaches 0 mechanically verifying deduplication natively
   useEffect(() => {
-    if (isPaused && strictCountdown === 0) {
+    if (isPaused && strictCountdown === 0 && !hasResumedRef.current) {
+      hasResumedRef.current = true;
       resumeFromPause();
+    }
+    
+    // Native reset bounds resetting the flag organically upon new intervals triggering 
+    if (isPaused && strictCountdown > 0) {
+      hasResumedRef.current = false;
     }
   }, [isPaused, strictCountdown, resumeFromPause]);
   
